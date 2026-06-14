@@ -5,7 +5,7 @@
 [English (GB)](#english) · [Русский](#русский)
 
 **flux** — static site generator for engineering reference.  
-Built with `zsh` + `awk` + `ed`. No dependencies. No AI. No bullshit.
+Built with `sh` + `awk` + `ed`. No dependencies. No AI. No bullshit.
 
 ---
 
@@ -78,7 +78,7 @@ Marking,Value,Package,Notes
 
 ### Requirements
 
-- zsh (default on macOS, most BSD, many Linux, and even Solaris)
+- sh (Pure Bourne Shell)
 - awk (any POSIX version)
 - ed (standard UNIX editor)
 
@@ -96,7 +96,7 @@ MIT — do whatever you want, just keep the original author's name.
 ## Русский
 
 **flux** — генератор статических страниц для технического справочника.
-Превращает Markdown и CSV в чистый HTML. Только zsh + awk + ed. Никаких зависимостей.
+Превращает Markdown и CSV в чистый HTML. Только sh + awk + ed. Никаких зависимостей.
 
 ### Возможности
 - Markdown → HTML (заголовки, списки, блоки кода)
@@ -161,7 +161,7 @@ flux/
 
 ### Зависимости
 
-- zsh (по умолчанию на macOS, большинство BSD, многие Linux, и даже Solaris)
+- sh (чистый Bourne Shell)
 - awk (любая POSIX-версия)
 - ed (стандартный редактор UNIX)
 

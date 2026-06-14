@@ -1,9 +1,11 @@
-#!/usr/bin/env zsh
+#!/bin/sh
+# shellcheck shell=sh
 
 # flux - static site generator for engineering reference
 # Uses ONLY ed and awk. HTML comments as markers: <!-- FLUX_* -->
 # by ax-hack (Lex's Works · Engineering Workshop)
 # 06.2026
+# Pure Bourne shell + awk + ed. No bash, no zsh, no deps
 
 set -e
 
@@ -22,7 +24,7 @@ COMPONENT=""
 DEBUG=0
 
 # Цвета
-if [[ -t 1 ]]; then
+if [ -t 1 ]; then
     GREEN='\033[0;32m'
     BLUE='\033[0;34m'
     RED='\033[0;31m'
@@ -33,13 +35,13 @@ else
 fi
 
 debug_log() {
-    if [[ $DEBUG -eq 1 ]]; then
+    if [ $DEBUG -eq 1 ]; then
         echo >&2 "${YELLOW}DEBUG: $1${NC}"
     fi
 }
 
 # Разбор аргументов
-while [[ $# -gt 0 ]]; do
+while [ $# -gt 0 ]; do
     case $1 in
         --force) FORCE=1 ;;
         --clean) CLEAN=1 ;;
@@ -57,20 +59,23 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-if [[ $CLEAN -eq 1 ]]; then
+if [ $CLEAN -eq 1 ]; then
     echo "→ Cleaning build directory..."
     rm -rf $BUILD_DIR
 fi
 
-mkdir -p $BUILD_DIR/{components,soldering,assembly,tools,assets}
-if [[ -d "$ASSETS_DIR" ]]; then
+for dir in components soldering assembly tools assets; do
+    mkdir -p "$BUILD_DIR/$dir"
+done
+
+if [ -d "$ASSETS_DIR" ]; then
     cp -r $ASSETS_DIR/* $BUILD_DIR/assets/ 2>/dev/null || true
 fi
 
 # Функция: генерация таблицы из CSV
 generate_table() {
-    local csv_file=$1
-    local tmp_file=$2
+    csv_file=$1
+    tmp_file=$2
     
     awk -F',' '
     BEGIN {
@@ -102,8 +107,8 @@ generate_table() {
 
 # Функция: Markdown → HTML
 markdown_to_html() {
-    local md_file=$1
-    local tmp_file=$2
+    md_file=$1
+    tmp_file=$2
     
     awk '
     BEGIN { in_code = 0 }
@@ -137,15 +142,15 @@ markdown_to_html() {
 
 # Функция: генерация sidebar
 generate_sidebar() {
-    local current="$1"
-    local tmp_file="/tmp/flux_sidebar_$$.html"
+    current="$1"
+    tmp_file="/tmp/flux_sidebar_$$.html"
     
     cat > "$tmp_file" <<EOF
 <aside class="sidebar">
     <h4>Components</h4>
     <ul>
-        <li><a href="/components/resistors.html"$( [[ "$current" == "resistors" ]] && echo ' class="active"')>Resistors</a></li>
-        <li><a href="/components/capacitors.html"$( [[ "$current" == "capacitors" ]] && echo ' class="active"')>Capacitors</a></li>
+        <li><a href="/components/resistors.html"$( [ "$current" = "resistors" ] && echo ' class="active"')>Resistors</a></li>
+        <li><a href="/components/capacitors.html"$( [ "$current" = "capacitors" ] && echo ' class="active"')>Capacitors</a></li>
         <li><a href="/components/transistors.html">Transistors (soon)</a></li>
     </ul>
     <h4 style="margin-top: 1.5rem;">Soldering</h4>
@@ -162,14 +167,19 @@ EOF
     echo "$tmp_file"
 }
 
+# Экранирование для ed
+ed_escape() {
+    echo "$1" | awk '{gsub(/[\/&]/,"\\\\&"); print}'
+}
+
 # Функция: генерация страницы через ed
 generate_page() {
-    local template=$1
-    local output=$2
-    local title=$3
-    local description=$4
-    local content_file=$5
-    local sidebar_file=$6
+    template=$1
+    output=$2
+    title=$3
+    description=$4
+    content_file=$5
+    sidebar_file=$6
     
     debug_log "Generating $output"
     debug_log "  template: $template"
@@ -181,11 +191,11 @@ generate_page() {
     cp "$template" "$output"
     
     # Экранируем title и description для ed (только / и &)
-    local title_esc=$(echo "$title" | sed 's/[\/&]/\\&/g')
-    local desc_esc=$(echo "$description" | sed 's/[\/&]/\\&/g')
+    title_esc=$(ed_escape "$title")
+    desc_esc=$(ed_escape "$description")
     
     # Создаём ed-скрипт
-    local ed_script="/tmp/flux_ed_$$.ed"
+    ed_script="/tmp/flux_ed_$$.ed"
     
     # Начинаем скрипт
     echo "/<!-- FLUX_TITLE -->/s//$title_esc/" > "$ed_script"
@@ -193,7 +203,7 @@ generate_page() {
     echo "/<!-- FLUX_CONTENT -->/r $content_file" >> "$ed_script"
     echo "/<!-- FLUX_CONTENT -->/d" >> "$ed_script"
     
-    if [[ -n "$sidebar_file" && -f "$sidebar_file" ]]; then
+    if [ -n "$sidebar_file" ] && [ -f "$sidebar_file" ]; then
         echo "/<!-- FLUX_SIDEBAR -->/r $sidebar_file" >> "$ed_script"
         echo "/<!-- FLUX_SIDEBAR -->/d" >> "$ed_script"
     fi
@@ -202,7 +212,7 @@ generate_page() {
     echo "q" >> "$ed_script"
     
     debug_log "ed_script: $ed_script"
-    if [[ $DEBUG -eq 1 ]]; then
+    if [ $DEBUG -eq 1 ]; then
         echo "--- ed script content ---"
         cat "$ed_script"
         echo "--- end ed script ---"
@@ -212,7 +222,7 @@ generate_page() {
     if ed -s "$output" < "$ed_script" 2>&1; then
         debug_log "ed completed successfully"
     else
-        local ed_exit=$?
+        ed_exit=$?
         echo "${RED}ERROR: ed failed with exit code $ed_exit${NC}"
         debug_log "ed script was:"
         cat "$ed_script"
@@ -227,35 +237,35 @@ generate_page() {
 build_components() {
     echo "${BLUE}→ Building components...${NC}"
     
-    if [[ ! -d "$SRC_DIR/components" ]]; then
+    if [ ! -d "$SRC_DIR/components" ]; then
         echo "  No components found in $SRC_DIR/components"
         return
     fi
     
-    local component_list=""
+    component_list=""
     
     for md in $SRC_DIR/components/*.md; do
-        [[ -f "$md" ]] || continue
-        local name=$(basename "$md" .md)
-        local csv="$SRC_DIR/components/${name}.csv"
-        local output="$BUILD_DIR/components/${name}.html"
+        [ -f "$md" ] || continue
+        name=$(basename "$md" .md)
+        csv="$SRC_DIR/components/${name}.csv"
+        output="$BUILD_DIR/components/${name}.html"
         
-        if [[ -f "$output" && $FORCE -eq 0 ]]; then
+        if [ -f "$output" ] && [ $FORCE -eq 0 ]; then
             echo "  - $name (skipped, use --force)"
-            component_list+="      <li><a href=\"/components/${name}.html\">$name</a></li>\n"
+            component_list="${component_list}      <li><a href=\"/components/${name}.html\">$name</a></li>"
             continue
         fi
         
         # Временные файлы
-        local content_tmp="/tmp/flux_content_$$.html"
-        local sidebar_tmp=""
+        content_tmp="/tmp/flux_content_$$.html"
+        sidebar_tmp=""
         
         # Конвертируем Markdown
         markdown_to_html "$md" "$content_tmp"
         
         # Добавляем таблицу, если есть CSV
-        if [[ -f "$csv" ]]; then
-            local table_tmp="/tmp/flux_table_$$.html"
+        if [ -f "$csv" ]; then
+            table_tmp="/tmp/flux_table_$$.html"
             generate_table "$csv" "$table_tmp"
             echo "<h2>Specifications</h2>" >> "$content_tmp"
             cat "$table_tmp" >> "$content_tmp"
@@ -263,10 +273,10 @@ build_components() {
         fi
         
         # Заголовок из первого h1
-        local title=$(grep -m1 '^# ' "$md" | sed 's/^# //')
-        [[ -z "$title" ]] && title="$name"
+        title=$(awk '/^# / {print substr($0, 3); exit}' "$md")
+        [ -z "$title" ] && title="$name"
         
-        local description="Reference on $name — specifications, packages, applications."
+        description="Reference on $name — specifications, packages, applications."
         
         # Генерируем sidebar
         sidebar_tmp=$(generate_sidebar "$name")
@@ -277,7 +287,7 @@ build_components() {
         # Чистим
         rm -f "$content_tmp" "$sidebar_tmp"
         
-        component_list+="      <li><a href=\"/components/${name}.html\">$title</a></li>\n"
+        component_list="${component_list}      <li><a href=\"/components/${name}.html\">$name</a></li>"
         echo "  ✓ $name → ${output}"
     done
     
@@ -288,26 +298,26 @@ build_components() {
 build_soldering() {
     echo "${BLUE}→ Building soldering guides...${NC}"
     
-    if [[ ! -d "$SRC_DIR/soldering" ]]; then
+    if [ ! -d "$SRC_DIR/soldering" ]; then
         echo "  No soldering guides found"
         return
     fi
     
     for md in $SRC_DIR/soldering/*.md; do
-        [[ -f "$md" ]] || continue
-        local name=$(basename "$md" .md)
-        local output="$BUILD_DIR/soldering/${name}.html"
+        [ -f "$md" ] || continue
+        name=$(basename "$md" .md)
+        output="$BUILD_DIR/soldering/${name}.html"
         
-        if [[ -f "$output" && $FORCE -eq 0 ]]; then
+        if [ -f "$output" ] && [ $FORCE -eq 0 ]; then
             echo "  - $name (skipped, use --force)"
             continue
         fi
         
-        local content_tmp="/tmp/flux_content_$$.html"
+        content_tmp="/tmp/flux_content_$$.html"
         markdown_to_html "$md" "$content_tmp"
         
-        local title=$(grep -m1 '^# ' "$md" | sed 's/^# //')
-        [[ -z "$title" ]] && title="$name"
+        title=$(awk '/^# / {print substr($0, 3); exit}' "$md")
+        [ -z "$title" ] && title="$name"
         
         generate_page "$TEMPLATES_DIR/page.html" "$output" "$title" "Guide on $title" "$content_tmp" ""
         
@@ -320,26 +330,26 @@ build_soldering() {
 build_assembly() {
     echo "${BLUE}→ Building assembly guides...${NC}"
     
-    if [[ ! -d "$SRC_DIR/assembly" ]]; then
+    if [ ! -d "$SRC_DIR/assembly" ]; then
         echo "  No assembly guides found"
         return
     fi
     
     for md in $SRC_DIR/assembly/*.md; do
-        [[ -f "$md" ]] || continue
-        local name=$(basename "$md" .md)
-        local output="$BUILD_DIR/assembly/${name}.html"
+        [ -f "$md" ] || continue
+        name=$(basename "$md" .md)
+        output="$BUILD_DIR/assembly/${name}.html"
         
-        if [[ -f "$output" && $FORCE -eq 0 ]]; then
+        if [ -f "$output" ] && [ $FORCE -eq 0 ]; then
             echo "  - $name (skipped, use --force)"
             continue
         fi
         
-        local content_tmp="/tmp/flux_content_$$.html"
+        content_tmp="/tmp/flux_content_$$.html"
         markdown_to_html "$md" "$content_tmp"
         
-        local title=$(grep -m1 '^# ' "$md" | sed 's/^# //')
-        [[ -z "$title" ]] && title="$name"
+        title=$(awk '/^# / {print substr($0, 3); exit}' "$md")
+        [ -z "$title" ] && title="$name"
         
         generate_page "$TEMPLATES_DIR/page.html" "$output" "$title" "Guide on $title" "$content_tmp" ""
         
@@ -352,9 +362,9 @@ build_assembly() {
 build_index() {
     echo "${BLUE}→ Building index...${NC}"
     
-    local component_list=$(cat /tmp/flux_component_list.$$ 2>/dev/null || echo "<li>No components yet</li>")
+    component_list=$(cat /tmp/flux_component_list.$$ 2>/dev/null || echo "<li>No components yet</li>")
     
-    local content_tmp="/tmp/flux_index_content_$$.html"
+    content_tmp="/tmp/flux_index_content_$$.html"
     
     cat > "$content_tmp" <<EOF
 <div class="hero">
@@ -400,7 +410,7 @@ EOF
 }
 
 # Если указан конкретный компонент
-if [[ -n "$COMPONENT" ]]; then
+if [ -n "$COMPONENT" ]; then
     echo "${GREEN}→ Building single component: $COMPONENT${NC}"
     FORCE=1
     build_components
