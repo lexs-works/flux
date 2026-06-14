@@ -1,0 +1,6 @@
+Marking,Value,Package,Notes
+101,100Ω,0603,3-digit: 10×10¹
+472,4.7kΩ,0805,47×10²
+1002,10kΩ,1206,4-digit: 100×10²
+R100,0.1Ω,1206,Current sense
+0,0Ω (jumper),Any,Zero-ohm link
